@@ -1,66 +1,61 @@
-def IGWRT(zwn, mwn, lon_list, lat_list, p_list,
+def IGWRT(Lx, Ly, lon_list, lat_list, p_list,
                freq, dt, t_start, tstep, ttotal, xcyclic,
-               read_dtype, cal_dtype, inputfile, wrfile, bffile):
-    from constants import hour, day
+               read_dtype, cal_dtype, inputfile, wrfile):
     from wr_IGW import WR
-    import os
+    # import os
     # from netCDF4 import Dataset
-        
-    wr1 = WR(
-        zwn, mwn,
+    
+    print('Initializing the array of IGWRT WR class ...')
+    wr1 = WR(Lx, Ly,
         lon_list, lat_list, p_list, 
         dt,
-        tstep * hour,
-        ttotal * day,
+        tstep, ttotal,
         freq,
         t_start = t_start,
-        read_dtype=read_dtype,
-        cal_dtype=cal_dtype,
-        inputfile=inputfile)
+        read_dtype = read_dtype,
+        cal_dtype = cal_dtype,
+        inputfile = inputfile)
+    print(f'Reading data from: {inputfile} ...')
     
-    if os.path.exists(bffile):
-        print(f"Read from bffile: {bffile}")
-        wr1.read_bffile(bffile)
-        print(f"Read bffile: {bffile} successfully!")
-    else: 
-        print(f"bffile: {bffile} not exits, now calculating...")
-        wr1.bf.loadbf_ncfile(inputfile)
-        wr1.bf.ready(xcyclic=xcyclic)
-        wr1.bf.output(bffile)
-        print(f"bffile: {bffile} calculates successfully!")
+    wr1.bf.loadbf_ncfile(inputfile)
+    wr1.bf.ready(xcyclic=xcyclic)
+
     wr1.set_source_array(lon_list, lat_list)
-    # wr1.set_source_matrix(SW_lon, SW_lat, dlon, dlat, nnx, nny)
     wr1.ray_info()
     wr1.ray_run()
     wr1.output(wrfile)    
     
 if __name__ == '__main__':
     import numpy as np
-    
+    from constants import hour, km
+    import time
+
     # import warnings
     # warnings.filterwarnings("ignore")
     
+    start = time.perf_counter()
+
     parameters = {
-        'zwn': np.array([-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]), 'mwn': np.array([-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]),
-        # 'zwn': np.array([-5,5]), 'mwn': np.array([-5,5]),
-        'lon_list': np.array([180]), # zonal wave sources
-        'lat_list': np.array([0]), # Meridional wave sources
-        # 'lon_list': np.array([110,115,120,125,130]), # zonal wave sources
-        # 'lat_list': np.array([-15,-10,-5]), # Meridional wave sources
-        'p_list': np.array([500]), # source pressure (hPa)
-        'freq': 2 * np.pi / 5 / 86400, # 波动的起始频率
-        'dt': 86400*6, # 速度场数据的时间分辨率，units: seconds
-        't_start': 0,# 起始积分的时间点
-        'tstep': 10/60, # 积分的时间间隔 unit: hour
-        'ttotal': 5., # 积分的总时长 unit: day
+        'Lx' : np.concatenate((np.arange(-1000, -100+0.01, 100), np.arange(100, 1000+0.01, 100))) * km, # The initial zonal wavelength (meter)
+        'Ly' : np.concatenate((np.arange(-1000, -100+0.01, 100), np.arange(100, 1000+0.01, 100))) * km, # The initial meridional wavelength (meter)
+        'lon_list': np.arange(115, 130.0001, 0.5), # Zonal wave sources (degree)
+        'lat_list': np.arange(-22, -15.0001, 0.5), # Meridional wave sources (degree)
+        'p_list': np.array([500, 850]), # Vertical source (hPa)
+        
+        'freq': 2 * np.pi /( 8 * hour), # The initial frequency of waves (rad/s)
+        'dt': 1 * hour, # The time resolution of backgroud data (second)
+        't_start': 3600,# The starting point of integration (second)
+        'tstep': 1/60 * hour, # The time interval of integration (second)
+        'ttotal': 10 * hour, # The total time of integration (second)
+        
         'xcyclic': True,
-        'read_dtype': 'float64', # dtype read from nc
+        'read_dtype': 'float32', # dtype read from nc
         'cal_dtype':'float64', # Only support float64
-        'inputfile' : 'input_theory_theta.nc', #  background field
-        'bffile'  : 'bf_theory_theta.nc', # output background field file
-        'wrfile'  : 'wr_theory_theta.nc', # output wave ray ncfile
-        # 'input_theta' : 'input_air.nc', #  background field
-        # 'bffile'  : 'bf_air.nc', # output background field file
-        # 'wrfile'  : 'wr_air.nc', # output wave ray ncfile
+        
+        'inputfile' : '/home/liuyifan/myPython/IGWRT/data/input_airuv_2019_025.nc', #  background field
+        'wrfile'    : '/home/liuyifan/myPython/IGWRT/data/wr_2019_new_numba_wl.nc', # output wave ray ncfile
         }
     IGWRT(**parameters)
+    
+    end = time.perf_counter()
+    print(f"Running time: {end-start:.3f} s")
